@@ -1,0 +1,21 @@
+# AI providers
+groq==1.6.0
+ollama==0.6.2
+google-genai==2.18.1
+
+# Voice: speech-to-text, wake word, audio, text-to-speech
+openai-whisper==20250625
+openwakeword==0.6.0
+silero-vad==6.2.3
+sounddevice==0.5.5
+PyAudio==0.2.14
+edge-tts==7.3.1
+pyttsx3==2.99
+torch==2.13.0
+numpy==2.5.2
+
+# UI and config
+PyQt6==6.11.0
+python-dotenv==1.2.2
+requests==2.34.2
+
