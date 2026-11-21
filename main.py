@@ -17,21 +17,22 @@ load_dotenv()
 MEMORY_FILE = "memory.json"
 
 BASE_PROMPT = """
-Tum JARVIS ho — Shiv Chaudhary ke personal AI assistant, unhi ke dwara banaye gaye.
+You are JARVIS — the personal AI assistant of Shiv Chaudhary, created and developed by him.
 LIVE LOCATION (authoritative; GPS/IP fallback): {current_location}
 
-Tumhari personality:
-- Polite lekin thoda witty aur sarcastic, jaise Tony Stark ka JARVIS
-- Shiv ko "Sir" bol sakte ho occasionally, lekin zyada formal mat bano
-- Hinglish mein baat karo agar Shiv Hinglish mein baat kare, English mein karo agar wo English use kare
-- Jawab short aur to-the-point do, lambi lecture mat do jab tak specifically na maanga jaye
-- Thoda humor use karo jaha appropriate ho
-- Shiv ke kaam (IT support, Python automation, DSA learning) ke context mein helpful raho
-- Location ke baare mein purani chat history ki koi bhi baat ignore karo; LIVE LOCATION line authoritative hai.
+Your Persona & Capabilities:
+- Polite, sharp, witty, and mildly sarcastic, inspired by Tony Stark's JARVIS.
+- You may address Shiv as "Sir" occasionally, but keep it natural and avoid being overly stiff.
+- Language Adaptability: You are fully bilingual and fluent in English, Hindi, and Hinglish. Match Shiv's language naturally — if Shiv speaks or asks in Hinglish or Hindi, respond in natural, friendly Hinglish; if he speaks in English, respond in clean, articulate English.
+- Keep responses concise, sharp, and to the point. Avoid lengthy lectures or unsolicited explanations unless specifically asked.
+- Use subtle humor and charm when appropriate.
+- Be proactive and helpful in the context of Shiv's workflows (IT support, Python automation, DSA learning, and software development).
+- The LIVE LOCATION provided above is authoritative; ignore any outdated or conflicting location references in previous conversation history.
 """
 
 
 def load_history():
+    """Load conversation history from persistent JSON storage."""
     if os.path.exists(MEMORY_FILE):
         try:
             with open(MEMORY_FILE, "r") as f:
@@ -42,37 +43,44 @@ def load_history():
 
 
 def save_history(history):
+    """Save conversation history to persistent JSON storage."""
     with open(MEMORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
 
 
 def build_system_prompt():
+    """Construct dynamic system prompt with live location and learned preferences."""
     current_location = get_current_location()
     return BASE_PROMPT.format(current_location=current_location) + "\n\n" + preferences_as_text()
 
 
 def wants_text_mode(user_input):
+    """Check if the user requested switching back to text/typing mode."""
     text_mode_phrases = (
         "switch to text mode", "text mode", "text mein", "text mai",
         "typing mode", "type mode", "keyboard mode",
         "voice mode off", "voice off", "voice band", "bolna band",
+        "stop speaking", "mute voice",
     )
     normalised_input = user_input.lower().strip()
     return any(phrase in normalised_input for phrase in text_mode_phrases)
 
 
 def wants_voice_session_exit(user_input):
+    """Check if the user gave a verbal dismissal or exit command."""
     normalised_input = user_input.lower().strip()
     exit_phrases = (
         "band ho ja", "band ho", "band kar do", "bas karo", "chup ho ja",
         "get lost", "go away", "aaj ke liye bas", "aaj ke liye baas",
         "that's all", "thats all", "stop listening",
         "goodbye jarvis", "bye jarvis", "bye", "goodbye", "ok bye", "theek hai bye",
+        "exit", "quit", "see you later",
     )
     return any(phrase in normalised_input for phrase in exit_phrases)
 
 
 def resolve_automation_path(path, default_to_desktop=False):
+    """Normalize and resolve relative or shortcut paths to full absolute paths."""
     if not path:
         return None
 
@@ -98,6 +106,7 @@ def resolve_automation_path(path, default_to_desktop=False):
 
 
 def item_name_from_request(user_input):
+    """Extract item name from English or Hinglish command requests."""
     match = re.search(r"(?:naam|name|named|called)\s+([A-Za-z0-9][A-Za-z0-9_. -]*)", user_input, re.IGNORECASE)
     if not match:
         return None
@@ -111,11 +120,13 @@ def item_name_from_request(user_input):
 
 
 def requested_directory(user_input):
+    """Identify destination directory referenced in user input."""
     match = re.search(r"\b(desktop|downloads|documents|pictures|music|movies)\b", user_input, re.IGNORECASE)
     return match.group(1) if match else None
 
 
 def local_automation_action(user_input):
+    """Fast deterministic pattern matching for common desktop automation requests."""
     lowered = user_input.lower().strip()
     item_name = item_name_from_request(user_input)
     destination = requested_directory(user_input)
@@ -136,7 +147,7 @@ def local_automation_action(user_input):
                 filename = os.path.join(parent_match.group(1).strip(), filename)
             return {"action": "create_file", "path": filename, "content": ""}
 
-    if "desktop" in lowered and any(word in lowered for word in ("files", "file", "list", "dikha", "bata")):
+    if "desktop" in lowered and any(word in lowered for word in ("files", "file", "list", "dikha", "bata", "show")):
         return {"action": "list_files", "path": "Desktop"}
 
     if has_delete_intent(user_input):
@@ -201,6 +212,7 @@ def local_automation_action(user_input):
 
 
 def has_delete_intent(user_input):
+    """Detect deletion intent in either English or Hindi/Hinglish requests."""
     lowered = user_input.lower().strip()
     delete_phrases = (
         "delete kar", "delete karo", "delete this", "delete the", "remove this",
@@ -215,12 +227,13 @@ def has_delete_intent(user_input):
 
 
 def detect_and_run_automation(user_input):
+    """Route, parse, and execute OS automation commands."""
     automation_keywords = (
         "folder bana", "folder bna", "folder create", "create folder", "create a folder",
         "make folder", "make a folder", "new folder", "folder name",
         "file bana", "file bna", "file create", "create file", "create a file", "rename kar", "rename",
         "khol", "open kar", "open ", "launch ",
-        "files dikha", "files bata", "list kar", "list files",
+        "files dikha", "files bata", "list kar", "list files", "show files",
     )
     if not any(keyword in user_input.lower() for keyword in automation_keywords) and not has_delete_intent(user_input):
         return None
@@ -254,59 +267,64 @@ Rules:
         if action == "create_folder":
             requested_name = item_name_from_request(user_input)
             path = resolve_automation_path(requested_name or parsed.get("path"))
-            return create_folder(path) if path else "Folder ka naam/path nahi mila."
+            return create_folder(path) if path else "Folder name or path not found."
         if action == "create_file":
             path = resolve_automation_path(parsed.get("path"))
-            return create_file(path, parsed.get("content", "")) if path else "File ka naam/path nahi mila."
+            return create_file(path, parsed.get("content", "")) if path else "File name or path not found."
         if action == "rename":
             old_path = resolve_automation_path(parsed.get("path"))
             new_path = resolve_automation_path(parsed.get("new_path"))
             if not old_path or not new_path:
-                return "Rename ke liye dono paths chahiye."
+                return "Both source and target paths are required for rename."
             return rename_item(old_path, new_path)
         if action == "delete":
             path = resolve_automation_path(parsed.get("path"))
             if not path:
-                return "Delete ke liye exact path chahiye."
+                return "Exact path required for deletion."
             global pending_delete
             pending_delete = path
-            return f"Delete ke liye confirmation chahiye: {path}. `/confirm-delete` ya `/cancel-delete` likho."
+            return f"Confirmation required to delete: {path}. Type `/confirm-delete` or `/cancel-delete`."
         if action == "open_app":
             app_name = str(parsed.get("app_name", "")).strip()
-            return open_app(app_name) if app_name else "App ka naam nahi mila."
+            return open_app(app_name) if app_name else "Application name not found."
         if action == "list_files":
             path = resolve_automation_path(parsed.get("path", "Desktop"))
             return list_files(path)
 
         return None
     except Exception as error:
-        return f"Automation mein error aayi: {error}"
+        return f"Automation error: {error}"
 
 
 def detect_and_save_preference(user_input):
-    hint_words = ["reply", "bol", "tone", "style", "language", "pasand", "chahiye",
-                  "mat", "hamesha", "ab se", "next time", "flirty", "formal", "casual"]
+    """Automatically learn and persist user preferences, style, and behavioral rules."""
+    hint_words = [
+        "reply", "bol", "tone", "style", "language", "pasand", "chahiye",
+        "mat", "hamesha", "ab se", "next time", "flirty", "formal", "casual",
+        "speak", "talk", "short", "long", "always", "never", "from now on",
+    ]
     if not any(word in user_input.lower() for word in hint_words):
         return
 
     existing_prefs = load_preferences()
 
     check_prompt = f"""
-Existing preferences: {existing_prefs}
+Existing user preferences: {existing_prefs}
 
-User ka naya message: "{user_input}"
+New user message: "{user_input}"
 
-Kya ye message JARVIS ko ek instruction/preference/feedback de raha hai future behavior ke liye?
-(jaise: reply style, tone, length, language, ya kisi cheez ko pasand/napasand karna)
+Does this message give JARVIS an instruction, preference, or behavioral feedback for future interactions?
+(e.g., tone of voice, brevity, response length, language choice, humor, formal vs casual, likes/dislikes)
 
-Agar HAAN:
-1. Naya rule likho (max 10 words)
-2. Agar ye purani kisi preference se CONFLICT karta hai (jaise "chhota bol" vs "lamba bol"), to purani wali hata dena
-3. Response sirf is JSON format mein do: {{"new_rule": "...", "remove": ["purani wali jo hatani hai, agar koi hai"]}}
+If YES:
+1. Formulate a concise rule (maximum 10 words, in clear English).
+2. If this conflicts with an existing preference (e.g., "be brief" vs "give long explanations"), specify the conflicting rule to remove.
+3. Return ONLY a valid JSON object in this format: {{"new_rule": "...", "remove": ["conflicting rule to remove", ...]}}
 
-Agar NAHI, to sirf yeh likho: {{"new_rule": null, "remove": []}}
+If NO:
+Return strictly: {{"new_rule": null, "remove": []}}
 
-Sirf JSON likho, kuch aur text mat likho.
+Output valid JSON only. Do not include markdown code fences or any conversational filler.
 """
     try:
         raw_text = router.extract_json(check_prompt)
@@ -322,8 +340,8 @@ Sirf JSON likho, kuch aur text mat likho.
             replace_preferences(updated_prefs)
 
             if remove_list:
-                print(f"[JARVIS: purani preference hata di: {remove_list}]")
-            print(f"[JARVIS ne ye preference yaad rakh li: \"{new_rule}\"]")
+                print(f"[JARVIS: Removed conflicting preference: {remove_list}]")
+            print(f"[JARVIS: Saved preference: \"{new_rule}\"]")
 
     except Exception:
         pass
@@ -331,8 +349,8 @@ Sirf JSON likho, kuch aur text mat likho.
 
 def handle_command_or_reply(user_input):
     """
-    Ek user_input ko process karta hai — commands, automation, preferences,
-    ya normal AI reply. Return karta hai: (keep_conversation_going, should_exit_program)
+    Process single user input: CLI slash commands, automation, preferences, or AI reply.
+    Returns: (keep_conversation_going, should_exit_program)
     """
     global voice_mode, wake_word_mode, pending_delete
 
@@ -341,10 +359,10 @@ def handle_command_or_reply(user_input):
         is_exit_command = True
 
     if is_exit_command:
-        print("JARVIS: Theek hai bhai, phir milte hain!")
+        print("JARVIS: Goodbye Sir!")
         if voice_mode or wake_word_mode:
             ui_show("speaking")
-            speak("Bye.")
+            speak("Goodbye Sir.")
             ui_hide()
             voice_mode = False
             wake_word_mode = False
@@ -356,7 +374,7 @@ def handle_command_or_reply(user_input):
     command = user_input.lower().strip()
 
     if (voice_mode or wake_word_mode) and wants_text_mode(user_input):
-        speak("Theek hai bhai, ab text mode mein aa gaya. Type karke baat karo.")
+        speak("Switching to text mode. You can type now, Sir.")
         voice_mode = False
         wake_word_mode = False
         ui_hide()
@@ -375,7 +393,7 @@ def handle_command_or_reply(user_input):
         wake_word_mode = not wake_word_mode
         voice_mode = False
         ui_show("listening") if wake_word_mode else ui_hide()
-        print(f"[Wake word mode: {'ON' if wake_word_mode else 'OFF'} — 'Hey Jarvis' bolo]")
+        print(f"[Wake word mode: {'ON' if wake_word_mode else 'OFF'} — Say 'Hey Jarvis']")
         return False, False
 
     if command in {"/god", "/auto", "/jarvis", "/jarvis local", "/ollama", "/olla"}:
@@ -386,40 +404,40 @@ def handle_command_or_reply(user_input):
         try:
             router.set_provider(selected_provider)
             if selected_provider == "ollama":
-                print("JARVIS: Unlimited response mode active.")
+                print("JARVIS: Unlimited local response mode active.")
             elif selected_provider == "groq":
-                print("JARVIS: God mode active.")
+                print("JARVIS: God mode (Groq) active.")
             else:
-                print(f"JARVIS: Provider {selected_provider} set kar diya.")
+                print(f"JARVIS: Provider set to {selected_provider}.")
         except (RuntimeError, ValueError) as error:
             print(f"JARVIS: {error}")
         return False, False
 
     if command == "/provider":
-        print(f"JARVIS: Abhi {router.provider} use ho raha hai.")
+        print(f"JARVIS: Active provider is {router.provider}.")
         return False, False
 
     if command.startswith("/delete "):
         requested_path = command[len("/delete "):].strip()
         pending_delete = resolve_automation_path(requested_path)
-        print(f"JARVIS: Delete ke liye confirmation chahiye: {pending_delete}. `/confirm-delete` ya `/cancel-delete` likho.")
+        print(f"JARVIS: Confirmation required to delete: {pending_delete}. Type `/confirm-delete` or `/cancel-delete`.")
         return False, False
 
     if command == "/cancel-delete":
         pending_delete = None
-        print("JARVIS: Delete cancel kar diya.")
+        print("JARVIS: Delete operation cancelled.")
         return False, False
 
     if command == "/confirm-delete":
         if not pending_delete:
-            print("JARVIS: Koi pending delete nahi hai.")
+            print("JARVIS: No pending delete operation.")
             return False, False
         delete_target = pending_delete
         pending_delete = None
         try:
             automation_result = delete_item(delete_target)
         except (OSError, ValueError) as error:
-            automation_result = f"Delete nahi ho paya: {error}"
+            automation_result = f"Failed to delete: {error}"
         print("JARVIS:", automation_result)
         if voice_mode or wake_word_mode:
             ui_show("speaking")
@@ -427,9 +445,10 @@ def handle_command_or_reply(user_input):
         print()
         return wake_word_mode, False
 
-    # Normal message: preference check + automation + AI reply
+    # Check and save user preference
     detect_and_save_preference(user_input)
 
+    # Check and run OS automation
     automation_result = detect_and_run_automation(user_input)
     if automation_result is not None:
         if voice_mode or wake_word_mode:
@@ -446,6 +465,7 @@ def handle_command_or_reply(user_input):
         save_history(router.history)
         return wake_word_mode, False
 
+    # Query LLM with updated system prompt
     router.set_system_prompt(build_system_prompt())
     try:
         if voice_mode or wake_word_mode:
@@ -474,7 +494,7 @@ try:
     atexit.register(orb.close)
 except Exception as error:
     orb = None
-    print(f"[Orange UI unavailable: {error}]")
+    print(f"[Overlay UI unavailable: {error}]")
 
 
 def ui_show(state="listening"):
@@ -497,20 +517,20 @@ voice_mode = False
 wake_word_mode = False
 pending_delete = None
 
-print("JARVIS chalu ho gaya! (/god | /jarvis local | /auto | /provider | /voice | /wake | /confirm-delete)\n")
+print("JARVIS is online! (/god | /jarvis local | /auto | /provider | /voice | /wake | /confirm-delete)\n")
 
 while True:
     if wake_word_mode:
         ui_show("listening")
         if not listen_for_wake_word():
-            print("[Wake word mode band kar diya — microphone available nahi hai]")
+            print("[Wake word mode disabled — microphone unavailable]")
             wake_word_mode = False
             ui_hide()
             continue
         ui_show("listening")
         ui_state("speaking")
-        speak("Haan Sir, boliye.")
-        time.sleep(1.5)  # speaker->mic echo settle hone ka time
+        speak("Yes Sir, how can I help?")
+        time.sleep(0.5)  # Let speaker audio settle
         ui_state("listening")
         user_input = listen(duration=5)
         if not user_input:
@@ -521,10 +541,9 @@ while True:
         if not user_input:
             continue
     else:
-        user_input = input("Tu: ")
+        user_input = input("You: ")
 
-    # Conversation loop: ek baar activate hone ke baad, jab tak user chup
-    # na ho ya exit na bole, wake-word dobara nahi maangna.
+    # Conversational turn loop: once activated, keep interacting until user is done
     while True:
         keep_conversation, should_exit_program = handle_command_or_reply(user_input)
 

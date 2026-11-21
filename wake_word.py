@@ -3,7 +3,7 @@ import numpy as np
 import time
 from openwakeword.model import Model
 
-# Model load karo (sirf "hey jarvis" wala)
+# Load openWakeWord model ("hey_jarvis")
 try:
     oww_model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
     wake_word_error = None
@@ -12,16 +12,17 @@ except Exception as error:
     wake_word_error = error
     print(f"[Wake word unavailable: {error}]")
 
-CHUNK = 1280  # openWakeWord ko 80ms chunks chahiye (16000Hz * 0.08s)
+CHUNK = 1280  # openWakeWord expects 80ms chunks (16000Hz * 0.08s)
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-CONFIDENCE_THRESHOLD = 0.65  # zyada strict — echo/noise se false triggers kam
+CONFIDENCE_THRESHOLD = 0.65  # Higher threshold to minimize false positives
+
 
 def listen_for_wake_word():
-    """Continuously sunta hai jab tak 'Hey Jarvis' detect na ho."""
+    """Continuously listen until 'Hey Jarvis' is detected."""
     if oww_model is None:
-        print("[Wake word model unavailable. Model assets install/download karke /wake retry karo.]")
+        print("[Wake word model unavailable. Please download model assets and retry /wake.]")
         return False
 
     audio = pyaudio.PyAudio()
@@ -33,10 +34,9 @@ def listen_for_wake_word():
         audio.terminate()
         return False
 
-    print("[Wake word ke liye sun raha hu... 'Hey Jarvis' bolo]")
+    print("[Listening for wake word... Say 'Hey Jarvis']")
 
-    # Stream open hote hi kuch chunks discard karo — isse pichle
-    # speak()/echo ka residual audio detection mein count nahi hota.
+    # Discard initial frames to eliminate residual playback/echo
     try:
         for _ in range(6):
             stream.read(CHUNK, exception_on_overflow=False)

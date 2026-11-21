@@ -63,14 +63,14 @@ class AIRouter:
                     reply = self._send_ollama(messages)
                 except Exception as ollama_error:
                     raise RuntimeError(
-                        "Groq limit khatam ho gayi aur Ollama bhi unavailable hai. "
-                        "`ollama serve` chalao aur model download karo: "
+                        "Groq rate limit exceeded and local Ollama is unavailable. "
+                        "Please run `ollama serve` and pull your model: "
                         f"`ollama pull {self.ollama_model}`."
                     ) from ollama_error
 
                 # Do not keep making quota-exhausted cloud requests in this session.
                 self.provider = "ollama"
-                print("[JARVIS: Groq limit khatam — Ollama par switch kar diya.]")
+                print("[JARVIS: Groq quota exceeded — switched to local Ollama.]")
         else:
             raise ValueError("AI_PROVIDER must be 'auto', 'ollama', or 'groq'.")
 

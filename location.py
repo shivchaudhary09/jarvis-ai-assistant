@@ -10,8 +10,9 @@ load_dotenv()
 _cached_location = None
 _last_location_check = 0.0
 
+
 def get_gps_coordinates():
-    """Mac ke CoreLocation se real GPS coordinates lo."""
+    """Retrieve actual GPS coordinates from macOS CoreLocation."""
     try:
         result = subprocess.run(
             ["CoreLocationCLI", "--format", "%latitude,%longitude"],
@@ -22,13 +23,14 @@ def get_gps_coordinates():
         if result.returncode == 0 and match:
             lat, lon = match.groups()
             return float(lat), float(lon)
-        print("[Location: CoreLocationCLI se coordinates nahi mile; .env fallback use ho raha hai.]")
+        print("[Location: CoreLocationCLI returned no coordinates; falling back to IP/env.]")
     except (subprocess.TimeoutExpired, OSError) as error:
-        print(f"[Location: GPS unavailable ({error}); .env fallback use ho raha hai.]")
+        print(f"[Location: GPS unavailable ({error}); falling back to IP/env.]")
     return None, None
 
+
 def reverse_geocode(lat, lon):
-    """Coordinates ko readable location (city, state) mein convert karo."""
+    """Convert coordinates into a human-readable location (city, state, country)."""
     try:
         response = requests.get(
             "https://nominatim.openstreetmap.org/reverse",
@@ -45,8 +47,9 @@ def reverse_geocode(lat, lon):
     except Exception:
         return None
 
+
 def get_ip_location():
-    """Fallback location from the current public IP (city-level, not GPS)."""
+    """Fallback location from current public IP address (city-level)."""
     try:
         response = requests.get("https://ipapi.co/json/", timeout=5)
         response.raise_for_status()
@@ -59,8 +62,9 @@ def get_ip_location():
     except (requests.RequestException, ValueError):
         return None
 
+
 def get_current_location():
-    """Return a GPS location, refreshing at most once per minute."""
+    """Return the current location, caching results for 60 seconds."""
     global _cached_location, _last_location_check
 
     refresh_seconds = int(os.getenv("LOCATION_REFRESH_SECONDS", "60"))
@@ -76,8 +80,6 @@ def get_current_location():
             _last_location_check = now
             return _cached_location
 
-    # Ollama cannot browse or access macOS location services itself, so use a
-    # city-level public-IP fallback before the manually configured value.
     _cached_location = get_ip_location() or os.getenv("USER_LOCATION", "Unknown")
     _last_location_check = now
     return _cached_location
